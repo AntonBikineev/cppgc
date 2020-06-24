@@ -309,11 +309,26 @@ if(CPPGC_YOUNG_GENERATION)
   target_compile_definitions(cppgc PRIVATE "-DCPPGC_YOUNG_GENERATION")
 endif()
 
+#===============================================================================
+# Samples.
+#===============================================================================
+if (UNIX)
+  # The example relies on POSIX API of memory allocation.
+  set(CPPGC_SAMPLE_SOURCES "samples/cppgc/sample.cc"
+                           "samples/cppgc/platform.cc"
+                           "samples/cppgc/platform.h")
+
+  add_executable(cppgc_sample ${CPPGC_SAMPLE_SOURCES})
+
+  target_link_libraries(cppgc_sample cppgc pthread)
+
+  target_include_directories(cppgc_sample PRIVATE "${CMAKE_SOURCE_DIR}/include")
+endif()
 
 #===============================================================================
 # Tests.
 #===============================================================================
-add_subdirectory(third_party/googletest/src/)
+add_subdirectory(third_party/googletest/src/ EXCLUDE_FROM_ALL)
 
 set(CPPGC_UNITTEST_SOURCES "test/unittests/heap/cppgc/concurrent-sweeper-unittest.cc"
                            "test/unittests/heap/cppgc/custom-spaces-unittest.cc"
@@ -348,7 +363,7 @@ set(CPPGC_UNITTEST_SOURCES "test/unittests/heap/cppgc/concurrent-sweeper-unittes
                            "test/unittests/heap/cppgc/worklist-unittest.cc"
                            "test/unittests/heap/cppgc/write-barrier-unittest.cc")
 
-add_executable(cppgc_unittests ${CPPGC_UNITTEST_SOURCES})
+add_executable(cppgc_unittests EXCLUDE_FROM_ALL ${CPPGC_UNITTEST_SOURCES})
 
 target_link_libraries(cppgc_unittests cppgc gtest gmock)
 
@@ -372,3 +387,6 @@ endif()
 if(CPPGC_YOUNG_GENERATION)
   target_compile_definitions(cppgc_unittests PRIVATE "-DCPPGC_YOUNG_GENERATION")
 endif()
+
+# Driver target for tests.
+add_custom_target(tests DEPENDS cppgc_unittests)

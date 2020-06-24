@@ -1,0 +1,70 @@
+// Copyright 2020 the V8 project authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#include <cppgc/allocation.h>
+#include <cppgc/garbage-collected.h>
+#include <cppgc/heap.h>
+#include <cppgc/member.h>
+#include <cppgc/platform.h>
+#include <cppgc/visitor.h>
+
+#include <chrono>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <thread>
+
+#include "platform.h"
+
+/**
+ * This sample program shows how to set up a stand-alone cppgc heap.
+ */
+
+/**
+ * Simple string rope to illustrate allocation and garbage collection below.
+ * The rope keeps the next parts alive via regular managed reference.
+ */
+class Rope final : public cppgc::GarbageCollected<Rope> {
+ public:
+  explicit Rope(std::string part, Rope* next = nullptr)
+      : part_(part), next_(next) {}
+
+  void Trace(cppgc::Visitor* visitor) const { visitor->Trace(next_); }
+
+ private:
+  std::string part_;
+  cppgc::Member<Rope> next_;
+
+  friend std::ostream& operator<<(std::ostream& os, const Rope& rope);
+};
+
+std::ostream& operator<<(std::ostream& os, const Rope& rope) {
+  os << rope.part_;
+  if (rope.next_) {
+    os << *rope.next_;
+  }
+  return os;
+}
+
+int main(int argc, char* argv[]) {
+  // Create a platform that is used by cppgc::Heap for execution and backend
+  // allocation.
+  auto cppgc_platform = std::make_shared<sample::Platform>();
+  // Initialize the process. This must happen before any
+  // cppgc::Heap::Create() calls.
+  cppgc::InitializeProcess(cppgc_platform->GetPageAllocator());
+  // Create a managed heap.
+  std::unique_ptr<cppgc::Heap> heap = cppgc::Heap::Create(cppgc_platform);
+  // Allocate a string rope on the managed heap.
+  auto* greeting = cppgc::MakeGarbageCollected<Rope>(
+      heap->GetAllocationHandle(), "Hello ",
+      cppgc::MakeGarbageCollected<Rope>(heap->GetAllocationHandle(), "World!"));
+  // Manually trigger garbage collection. The object greeting is held alive
+  // through conservative stack scanning.
+  heap->ForceGarbageCollectionSlow("V8 embedders example", "Testing");
+  std::cout << *greeting << std::endl;
+  // Gracefully shutdown the process.
+  cppgc::ShutdownProcess();
+  return 0;
+}
